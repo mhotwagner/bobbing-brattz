@@ -95,12 +95,6 @@ export default function App() {
           className="rainbow-text"
           style={{ fontSize: "1.1rem", marginTop: 8, fontFamily: "'Helvetica', 'Arial', sans-serif", fontWeight: "bold" }}
         >
-          Click to duplicate, drag to toss!
-        </p>
-        <p
-          className="rainbow-text"
-          style={{ fontSize: "1.1rem", marginTop: 4, fontFamily: "'Helvetica', 'Arial', sans-serif", fontWeight: "bold" }}
-        >
           Happy Wedding Day, Brian and Matt!
         </p>
       </div>

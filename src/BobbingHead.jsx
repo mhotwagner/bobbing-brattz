@@ -81,14 +81,11 @@ export default function BobbingHead({
     const dy = py - s.downY;
 
     if (Math.sqrt(dx * dx + dy * dy) < TAP_THRESHOLD) {
-      // Tap — spawn new head; only nudge this one if it was already moving
+      // Tap — spawn new head and send this one spinning
       onTap(type, s.x, s.y);
-      const wasMoving = Math.abs(s.vx) > 0.5 || Math.abs(s.vy) > 0.5;
-      if (wasMoving) {
-        s.vx = (Math.random() - 0.5) * 10;
-        s.vy = (Math.random() - 0.5) * 10;
-        s.spin = (s.vx + s.vy) * 4;
-      }
+      s.vx = (Math.random() - 0.5) * 10;
+      s.vy = (Math.random() - 0.5) * 10;
+      s.spin = (s.vx + s.vy) * 4;
     } else {
       // Drag — fling velocity from last movement
       s.vx = (s.lastPointerX - s.prevPointerX) * 0.5;

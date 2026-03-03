@@ -1,6 +1,7 @@
 export const HEAD_SIZE = 130;
 const BOUNCE = 0.8;
 const SPIN_DECAY = 0.993;
+const EDGE_OVERFLOW = 65;
 
 const heads = new Map();
 let animId = null;
@@ -30,12 +31,14 @@ function start() {
       s.spin *= SPIN_DECAY;
       if (Math.abs(s.spin) < 0.05) s.spin = 0;
 
-      // Wall bounce
-      const maxX = window.innerWidth - HEAD_SIZE;
-      const maxY = window.innerHeight - HEAD_SIZE;
-      if (s.x < 0) { s.x = 0; s.vx = Math.abs(s.vx) * BOUNCE; }
+      // Wall bounce (allow overflow so heads go partially offscreen)
+      const minX = -EDGE_OVERFLOW;
+      const minY = -EDGE_OVERFLOW;
+      const maxX = window.innerWidth - HEAD_SIZE + EDGE_OVERFLOW;
+      const maxY = window.innerHeight - HEAD_SIZE + EDGE_OVERFLOW;
+      if (s.x < minX) { s.x = minX; s.vx = Math.abs(s.vx) * BOUNCE; }
       if (s.x > maxX) { s.x = maxX; s.vx = -Math.abs(s.vx) * BOUNCE; }
-      if (s.y < 0) { s.y = 0; s.vy = Math.abs(s.vy) * BOUNCE; }
+      if (s.y < minY) { s.y = minY; s.vy = Math.abs(s.vy) * BOUNCE; }
       if (s.y > maxY) { s.y = maxY; s.vy = -Math.abs(s.vy) * BOUNCE; }
     }
 
