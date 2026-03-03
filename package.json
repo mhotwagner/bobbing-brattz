@@ -5,13 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:party": "npx partykit dev party/brawlServer.js --config party/partykit.json",
+    "deploy:party": "npx partykit deploy party/brawlServer.js --config party/partykit.json",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.7.0",
+    "partykit": "^0.0.115",
+    "partysocket": "^1.1.16",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-router-dom": "^6.30.3",
     "vite": "^6.4.1"
   }
 }
