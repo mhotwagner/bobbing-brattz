@@ -1,0 +1,5 @@
+{
+  "name": "bobbing-brattz-brawl",
+  "main": "brawlServer.js",
+  "compatibilityDate": "2024-09-01"
+}
