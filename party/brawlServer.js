@@ -334,71 +334,94 @@ export default class BrawlServer {
       if (dist < minDist && dist > 0) {
         const nx = dx / dist;
         const ny = dy / dist;
+
+        // Always separate overlap to prevent sticking
+        const overlap = minDist - dist;
+        mover.x += (nx * overlap) / 2;
+        mover.y += (ny * overlap) / 2;
+        other.x -= (nx * overlap) / 2;
+        other.y -= (ny * overlap) / 2;
+
+        // Cooldown gates BOTH bump and damage to prevent oscillation
+        const pairKey = [moverId, otherId].sort().join(":");
+        const now = Date.now();
+        const lastHit = this._collisionCooldowns.get(pairKey) || 0;
+        if (now - lastHit < COLLISION_COOLDOWN_MS) continue;
+
         const dvx = mover.vx - other.vx;
         const dvy = mover.vy - other.vy;
         const impulse = dvx * nx + dvy * ny;
+        if (impulse <= 0) continue; // not approaching
 
-        if (impulse > 0) {
-          const bumpForce = 1.2;
-          mover.vx -= impulse * nx * bumpForce;
-          mover.vy -= impulse * ny * bumpForce;
-          other.vx += impulse * nx * bumpForce;
-          other.vy += impulse * ny * bumpForce;
+        this._collisionCooldowns.set(pairKey, now);
 
-          const overlap = minDist - dist;
-          mover.x += (nx * overlap) / 2;
-          mover.y += (ny * overlap) / 2;
-          other.x -= (nx * overlap) / 2;
-          other.y -= (ny * overlap) / 2;
+        // Capture pre-bump speeds to determine attacker
+        const moverPreSpeed = Math.sqrt(mover.vx * mover.vx + mover.vy * mover.vy);
+        const otherPreSpeed = Math.sqrt(other.vx * other.vx + other.vy * other.vy);
 
-          this._broadcast({
-            type: "bump",
-            a: { id: moverId, x: mover.x, y: mover.y, vx: mover.vx, vy: mover.vy },
-            b: { id: otherId, x: other.x, y: other.y, vx: other.vx, vy: other.vy },
-          });
+        // Apply bump force
+        const bumpForce = 1.2;
+        mover.vx -= impulse * nx * bumpForce;
+        mover.vy -= impulse * ny * bumpForce;
+        other.vx += impulse * nx * bumpForce;
+        other.vy += impulse * ny * bumpForce;
 
-          // HP damage with per-pair cooldown
-          const pairKey = [moverId, otherId].sort().join(":");
-          const now = Date.now();
-          const lastHit = this._collisionCooldowns.get(pairKey) || 0;
-          if (now - lastHit >= COLLISION_COOLDOWN_MS) {
-            this._collisionCooldowns.set(pairKey, now);
+        this._broadcast({
+          type: "bump",
+          a: { id: moverId, x: mover.x, y: mover.y, vx: mover.vx, vy: mover.vy },
+          b: { id: otherId, x: other.x, y: other.y, vx: other.vx, vy: other.vy },
+        });
 
-            // Shield absorbs 1 HP of damage
-            if (mover.shield) {
-              mover.shield = false;
-              this._broadcast({ type: "powerup_end", playerId: moverId, powerup: "shield" });
-            } else {
-              mover.hp = Math.max(0, mover.hp - 1);
-            }
+        // The player who was moving faster is the attacker; defender takes damage.
+        // For head-on at similar speeds, both take damage.
+        let moverTakesDmg = true;
+        let otherTakesDmg = true;
+        const speedRatio = moverPreSpeed / (otherPreSpeed || 0.001);
+        if (speedRatio > 1.3) {
+          // Mover was faster (attacker) — only other takes damage
+          moverTakesDmg = false;
+        } else if (speedRatio < 0.77) {
+          // Other was faster (attacker) — only mover takes damage
+          otherTakesDmg = false;
+        }
+        // else similar speed → head-on, both take damage
 
-            if (other.shield) {
-              other.shield = false;
-              this._broadcast({ type: "powerup_end", playerId: otherId, powerup: "shield" });
-            } else {
-              other.hp = Math.max(0, other.hp - 1);
-            }
-
-            this._broadcast({
-              type: "hit",
-              players: [
-                { id: moverId, hp: mover.hp, shield: !!mover.shield },
-                { id: otherId, hp: other.hp, shield: !!other.shield },
-              ],
-            });
-
-            if (mover.hp <= 0) {
-              mover.alive = false;
-              this._broadcast({ type: "ko", playerId: moverId });
-            }
-            if (other.hp <= 0) {
-              other.alive = false;
-              this._broadcast({ type: "ko", playerId: otherId });
-            }
-            if (mover.hp <= 0 || other.hp <= 0) {
-              this._checkWinner();
-            }
+        if (moverTakesDmg) {
+          if (mover.shield) {
+            mover.shield = false;
+            this._broadcast({ type: "powerup_end", playerId: moverId, powerup: "shield" });
+          } else {
+            mover.hp = Math.max(0, mover.hp - 1);
           }
+        }
+
+        if (otherTakesDmg) {
+          if (other.shield) {
+            other.shield = false;
+            this._broadcast({ type: "powerup_end", playerId: otherId, powerup: "shield" });
+          } else {
+            other.hp = Math.max(0, other.hp - 1);
+          }
+        }
+
+        this._broadcast({
+          type: "hit",
+          players: [
+            { id: moverId, hp: mover.hp, shield: !!mover.shield },
+            { id: otherId, hp: other.hp, shield: !!other.shield },
+          ],
+        });
+
+        if (mover.hp <= 0) {
+          mover.alive = false;
+          this._broadcast({ type: "ko", playerId: moverId });
+        }
+        if (other.hp <= 0) {
+          other.alive = false;
+          this._broadcast({ type: "ko", playerId: otherId });
+        }
+        if (mover.hp <= 0 || other.hp <= 0) {
+          this._checkWinner();
         }
       }
     }
