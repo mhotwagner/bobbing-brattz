@@ -113,7 +113,9 @@ export function stepPhysics(state, arenaRadius, centerX, centerY) {
 let lastCollisionTime = 0;
 const COLLISION_COOLDOWN = 150; // ms between collisions for same pair
 
-export function resolveCollision(a, b) {
+// separateOnly: if true, only push players apart (no velocity impulse).
+// Use during "playing" phase so server bumps are authoritative.
+export function resolveCollision(a, b, separateOnly = false) {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
@@ -129,6 +131,9 @@ export function resolveCollision(a, b) {
   a.y += (ny * overlap) / 2;
   b.x -= (nx * overlap) / 2;
   b.y -= (ny * overlap) / 2;
+
+  // In separateOnly mode, skip velocity impulse (server is authoritative)
+  if (separateOnly) return true;
 
   // Debounce impulse/spin — only apply once per cooldown
   const now = performance.now();

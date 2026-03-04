@@ -192,7 +192,13 @@ export default function Game({
         local.vy = 0;
       }
 
+      // Send position BEFORE collision resolution so server sees pre-collision
+      // overlap and can detect collisions for HP damage
+      netSyncRef.current?.maybeSend(local, performance.now());
+
       // Resolve collisions with remote players
+      // During "playing", only separate overlap — server is authoritative for
+      // velocity bumps (prevents double-bump oscillation)
       for (const [id, remote] of remoteStatesRef.current) {
         if (!remote) continue;
         // Skip collision while remote is mid-knock (already flying away)
@@ -204,16 +210,18 @@ export default function Game({
           x: remote.x, y: remote.y,
           vx: remote.targetVx, vy: remote.targetVy, spin: 0,
         };
-        const hit = resolveCollision(local, remoteAsState);
+        const hit = resolveCollision(local, remoteAsState, isPlaying);
         // Always propagate overlap separation back to remote
         remote.x = remoteAsState.x;
         remote.y = remoteAsState.y;
         if (hit) {
-          // Pool-ball momentum transfer: give remote the velocity local lost
-          const transferVx = preVx - local.vx;
-          const transferVy = preVy - local.vy;
-          remote.knockVx = transferVx * 0.8;
-          remote.knockVy = transferVy * 0.8;
+          if (!isPlaying) {
+            // Warmup: apply local momentum transfer (no server bumps)
+            const transferVx = preVx - local.vx;
+            const transferVy = preVy - local.vy;
+            remote.knockVx = transferVx * 0.8;
+            remote.knockVy = transferVy * 0.8;
+          }
           if (navigator.vibrate) navigator.vibrate(30);
           triggerHit(".brawl-player-head--local");
           triggerHit(`[data-player-id="${id}"]`);
@@ -225,9 +233,6 @@ export default function Game({
       for (const [, remote] of remoteStatesRef.current) {
         interpolateRemote(remote);
       }
-
-      // Send position
-      netSyncRef.current?.maybeSend(local, performance.now());
 
       // Update slingshot indicator
       updateSlingshot();
@@ -255,6 +260,8 @@ export default function Game({
       if (msg.type === "bump") {
         const local = localStateRef.current;
         if (!local) return;
+        // Server is authoritative for bump velocities during play
+        const otherId = msg.a.id === myId ? msg.b.id : msg.a.id;
         if (msg.a.id === myId) {
           local.vx = msg.a.vx * arenaRadius;
           local.vy = msg.a.vy * arenaRadius;
@@ -262,6 +269,13 @@ export default function Game({
         if (msg.b.id === myId) {
           local.vx = msg.b.vx * arenaRadius;
           local.vy = msg.b.vy * arenaRadius;
+        }
+        // Apply knock to the remote player too (visual feedback)
+        const remote = remoteStatesRef.current.get(otherId);
+        if (remote) {
+          const otherData = msg.a.id === otherId ? msg.a : msg.b;
+          remote.knockVx = otherData.vx * arenaRadius * 0.3;
+          remote.knockVy = otherData.vy * arenaRadius * 0.3;
         }
         if (navigator.vibrate) navigator.vibrate(50);
       }
